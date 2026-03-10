@@ -53,7 +53,7 @@
       },
       {
         "group": "Reference",
-        "pages": ["entry-actions", "conditions", "trigger-types", "context"]
+        "pages": ["entry-actions", "conditions", "trigger-types", "context", "cli"]
       },
       {
         "group": "Publishing",

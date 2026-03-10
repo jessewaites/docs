@@ -1,0 +1,155 @@
+---
+title: CLI
+description: Install and use the CableKnit CLI to build, validate, and monitor plugins.
+---
+
+The CableKnit CLI lets you build, validate, push, and monitor plugins from your terminal.
+
+## Install the CLI
+
+### Homebrew (macOS and Linux)
+
+```bash
+brew install jessewaites/cableknit/cableknit
+```
+
+### Direct download
+
+Download the latest binary from the [GitHub Releases](https://github.com/jessewaites/cableknit-cli/releases) page. Builds are available for macOS (Apple silicon), Linux, and Windows.
+
+### Go install
+
+```bash
+go install github.com/jessewaites/cableknit-cli@latest
+```
+
+Verify the installation:
+
+```bash
+cableknit version
+```
+
+## Authenticate
+
+Before using most commands you need to log in with your CableKnit account.
+
+### Log in
+
+```bash
+cableknit login
+```
+
+You see an interactive form that prompts you for your email and password. On success you see your account details in a confirmation box.
+
+### Check your session
+
+```bash
+cableknit whoami
+```
+
+Prints your name, email, and publisher status.
+
+### Log out
+
+```bash
+cableknit logout
+```
+
+Clears your local session and invalidates the token on the server.
+
+## Develop plugins
+
+### Validate a bundle
+
+Run validation against the CableKnit platform without publishing anything:
+
+```bash
+# Validate the current directory (must contain plugin.json)
+cableknit validate
+
+# Validate a specific path
+cableknit validate ./my-plugin
+
+# Validate a zip file
+cableknit validate my-plugin.zip
+```
+
+The CLI will zip the directory (if needed), upload it, and report any errors or warnings. A successful validation prints a summary of your plugin's name, slug, version, skills, automations, and docs.
+
+### Push a bundle
+
+Publish or update your plugin:
+
+```bash
+cableknit push
+
+cableknit push ./my-plugin
+```
+
+The CLI tells you whether a new plugin was created or an existing one was updated.
+
+## Monitor runs
+
+### List plugins
+
+```bash
+cableknit plugins list
+```
+
+Displays an interactive table with columns for name, slug, version, status, visibility, and install count.
+
+### List runs
+
+```bash
+# All runs
+cableknit runs list
+
+# Filter by status
+cableknit runs list --status running
+
+# Limit results
+cableknit runs list --limit 10
+```
+
+Statuses are color-coded: running (blue), paused (yellow), completed (green), failed (red), and cancelled (dim).
+
+### Tail a run
+
+Stream live logs from a running automation:
+
+```bash
+cableknit runs tail RUN-7F3A
+```
+
+This opens a full-screen view with a scrolling log, an elapsed-time counter, and a live spinner. The view freezes and shows a summary when the run reaches a terminal state. Press `ctrl+c` to exit early.
+
+For plain-text output (useful for piping or CI):
+
+```bash
+cableknit runs tail RUN-7F3A --no-tui
+```
+
+## Global flags
+
+These flags work with any command:
+
+| Flag | Description |
+|------|-------------|
+| `--api-url` | Override the API base URL |
+| `--no-color` | Disable color output |
+| `--debug` | Enable debug logging |
+| `--json` | Output structured JSON instead of styled text |
+
+### JSON mode
+
+Any data command supports `--json` for scripting and automation:
+
+```bash
+cableknit plugins list --json
+cableknit runs list --json
+cableknit validate --json
+```
+
+## Configuration
+
+The CLI stores its config at `~/.cableknit/config.yaml`. This file holds your auth token and any overrides. You generally don't need to edit it directly — `cableknit login` and `cableknit logout` manage it for you.
