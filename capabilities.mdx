@@ -1,0 +1,139 @@
+---
+title: Built-in Capabilities
+description: What CableKnit can do on behalf of your automation — no connectors required.
+---
+
+When you build a plugin, you get a set of capabilities for free. These are built into CableKnit and available to any automation, without the company needing to connect any external services.
+
+Additional capabilities become available when a company connects optional services like Slack or Microsoft Teams. Those are documented separately in [Connectors](/connectors).
+
+---
+
+## Outbound email
+
+Send emails from your workflow using the `notify` action with `"email"` as the channel, or use `send_and_wait` to pause the run until the recipient replies.
+
+CableKnit sends email on behalf of the company. Messages come from a CableKnit-managed sending address unless the company has configured a custom domain.
+
+### Fire-and-forget notification
+
+Use `notify` when you want to send an email and continue immediately without waiting for a response.
+
+```json
+{
+  "type": "notify",
+  "channels": ["email"],
+  "to_addresses": ["{{case_context.vendor_email}}"],
+  "subject": "Application received: {{case_context.company_name}}",
+  "body": "We've received your application and will be in touch within 2 business days."
+}
+```
+
+To send to all users with a given workflow role instead of a specific address:
+
+```json
+{
+  "type": "notify",
+  "channels": ["email"],
+  "to_role": "manager",
+  "subject": "Review required",
+  "body": "A new application is awaiting your review."
+}
+```
+
+### Request a reply
+
+Use `send_and_wait` when you need a response from the recipient before the workflow can continue. The run pauses in `paused_for_input` status until the reply arrives.
+
+```json
+{
+  "type": "send_and_wait",
+  "channel": "email",
+  "to_addresses": ["{{case_context.vendor_email}}"],
+  "template": "request-additional-documents",
+  "wait_for": "email_reply",
+  "timeout": "72h",
+  "output_key": "vendor_reply"
+}
+```
+
+The reply is stored in `case_context` under `output_key`. You can then pass it to an `ai_assess` step to extract or classify the response.
+
+### Email templates
+
+The `email_template_slug` parameter lets you reference a custom email template the company has configured in CableKnit. Templates support variable interpolation from `case_context`.
+
+```json
+{
+  "type": "notify",
+  "channels": ["email"],
+  "to_role": "manager",
+  "email_template_slug": "weekly-compliance-summary"
+}
+```
+
+<Tip>
+Prefer templates over inline `subject`/`body` when the email content is complex or needs to stay on-brand. Companies can customize templates without touching the plugin.
+</Tip>
+
+---
+
+## Human-in-the-loop decisions
+
+The `request_decision` action is the primary way to get a human involved in a workflow. It pauses the run and creates a Decision in the CableKnit Decision Queue — visible in the Mac app, iOS app, and via email notification. The run resumes automatically once a team member resolves it.
+
+This is the **only** mechanism third-party plugins have for reaching users directly. It is intentionally structured: decisions are tied to a run, they have explicit options, they create an audit trail, and they require deliberate action to resolve.
+
+```json
+{
+  "type": "request_decision",
+  "title": "Approve subcontractor: {{case_context.company_name}}",
+  "description": "Review the application and select an outcome. Supporting documents are attached.",
+  "decision_options": [
+    { "key": "approve", "label": "Approve" },
+    { "key": "reject", "label": "Reject" },
+    {
+      "key": "request_more_info",
+      "label": "Request more information",
+      "requires_input": true
+    }
+  ],
+  "assigned_role": "manager",
+  "context_keys": ["assessment", "vendor_reply"],
+  "priority": "high",
+  "expires_in": 48
+}
+```
+
+The reviewer sees the Decision with all attached context. After they act, `case_context.decision_outcome` is set to the chosen option's `key`, and the run resumes.
+
+Use `decision_outcome` conditions on outgoing transitions to route based on what was decided:
+
+```json
+{
+  "condition": {
+    "type": "decision_outcome",
+    "outcome": "approve"
+  },
+  "next_state": "send_approval_email"
+}
+```
+
+See [Entry Actions](/entry-actions#request_decision) for the full parameter reference, and [Conditions](/conditions#decision_outcome) for routing patterns.
+
+<Note>
+If you need to "notify" a user without requiring a decision, model it as a decision with a single **"Acknowledge"** option. This keeps the interaction structured and auditable rather than sending a raw notification.
+</Note>
+
+---
+
+## Connector-gated capabilities
+
+The following capabilities require the company to have connected an external service. Your plugin can use these actions — they will simply be skipped silently if the connector isn't present. Document any connector requirements clearly in your plugin's description so companies know what they need to set up.
+
+| Action | Requires |
+|---|---|
+| `notify_slack` | Slack connector |
+| `notify_teams` | Microsoft 365 connector |
+
+See [Connectors](/connectors) for details on how companies connect these services and how to handle graceful degradation in your workflow when a connector is absent.
