@@ -1,80 +1,223 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Build and test your first plugin in under 30 minutes.
 ---
 
-## Get started in three steps
+This guide walks you through creating a minimal plugin, pushing it to your sandbox, and watching an automation run end to end.
 
-Get your documentation site running locally and make your first customization.
+## What you'll build
 
-### Step 1: Set up your local environment
+A simple vendor notification plugin that:
+1. Receives an inbound email
+2. Uses AI to assess the email content
+3. Creates a Decision for a team member to review
+4. Sends a confirmation notification when the decision is made
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+## Step 1: Set up your sandbox
 
-### Step 2: Deploy your changes
+When your publisher account is approved, CableKnit creates a sandbox company for you automatically. Log into the [Developer Portal](https://cableknit.ai/developer) and confirm your sandbox is ready under **Sandbox**.
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+## Step 2: Create your bundle
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+Create a folder called `vendor-notifications.sweater` with this structure:
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+```
+vendor-notifications.sweater/
+  plugin.json
+  skills/
+    vendor-intake.json
+  automations/
+    vendor-review.json
+  docs/
+    getting-started.md
+```
 
-### Step 3: Go live
+## Step 3: Write plugin.json
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+```json
+{
+  "name": "Vendor Notifications",
+  "slug": "vendor-notifications",
+  "version": "1.0.0",
+  "description": "Triage incoming vendor emails and route them for human review.",
+  "author": {
+    "name": "Your Name",
+    "email": "you@example.com"
+  },
+  "industry": "professional_services",
+  "tier": "starter",
+  "visibility": "private",
+  "pricing": {
+    "model": "monthly",
+    "price_cents": 2900
+  },
+  "nav": {
+    "show_in_nav": false
+  }
+}
+```
+
+<Note>
+Set `visibility` to `private` while developing. Private plugins skip the review process and can be installed directly in your sandbox.
+</Note>
+
+## Step 4: Write your skill
+
+```json
+{
+  "name": "Vendor Intake",
+  "slug": "vendor-intake",
+  "description": "Handles vendor-related inquiries and email triage.",
+  "system_prompt": "You are a vendor relations assistant. You help operations teams manage incoming vendor communications, extract key information from emails, and route inquiries to the right people. Be concise and structured in your assessments.",
+  "trigger_description": "Use this skill when a user asks about vendor communications, supplier emails, or vendor onboarding.",
+  "action_type": "chat",
+  "position": 1
+}
+```
+
+## Step 5: Write your automation
+
+```json
+{
+  "name": "Vendor Email Review",
+  "slug": "vendor-email-review",
+  "description": "Triages incoming vendor emails and routes them for human review.",
+  "trigger_type": "inbound_email",
+  "trigger_config": {},
+  "priority": "normal",
+  "case_reference_prefix": "VND",
+  "position": 1,
+  "workflow_definition": {
+    "states": [
+      {
+        "name": "assess",
+        "type": "initial",
+        "entry_action": {
+          "type": "ai_assess",
+          "system_prompt": "You are reviewing an incoming vendor email. Extract the vendor name, the nature of their request (invoice, inquiry, complaint, onboarding), urgency level (low/normal/high), and a one-sentence summary. Respond as JSON.",
+          "output_key": "assessment",
+          "output_schema": {
+            "vendor_name": "string",
+            "request_type": "string",
+            "urgency": "string",
+            "summary": "string"
+          }
+        }
+      },
+      {
+        "name": "request_review",
+        "entry_action": {
+          "type": "request_decision",
+          "title": "Vendor Email: {{case_context.assessment.vendor_name}}",
+          "description": "{{case_context.assessment.summary}}",
+          "decision_options": [
+            { "key": "respond", "label": "Respond to vendor" },
+            { "key": "escalate", "label": "Escalate to manager" },
+            { "key": "archive", "label": "Archive — no action needed" }
+          ],
+          "assigned_role": "manager",
+          "priority": "normal",
+          "expires_in": 48
+        }
+      },
+      {
+        "name": "confirmed",
+        "entry_action": {
+          "type": "notify",
+          "channels": ["in_app"],
+          "title": "Vendor email processed",
+          "body": "{{case_context.assessment.vendor_name}} — decision recorded."
+        }
+      },
+      {
+        "name": "completed",
+        "type": "terminal",
+        "terminal_status": "completed"
+      }
+    ],
+    "transitions": [
+      {
+        "from_state": "assess",
+        "to_state": "request_review",
+        "priority": 1,
+        "condition": { "type": "automatic" }
+      },
+      {
+        "from_state": "request_review",
+        "to_state": "confirmed",
+        "priority": 1,
+        "condition": { "type": "decision_outcome", "matches": "respond" }
+      },
+      {
+        "from_state": "request_review",
+        "to_state": "confirmed",
+        "priority": 2,
+        "condition": { "type": "decision_outcome", "matches": "escalate" }
+      },
+      {
+        "from_state": "request_review",
+        "to_state": "completed",
+        "priority": 3,
+        "condition": { "type": "fallback" }
+      },
+      {
+        "from_state": "confirmed",
+        "to_state": "completed",
+        "priority": 1,
+        "condition": { "type": "automatic" }
+      }
+    ]
+  }
+}
+```
+
+## Step 6: Write your doc
+
+```markdown
+---
+title: Getting Started
+slug: getting-started
+category: setup
+position: 1
+---
+
+# Getting Started with Vendor Notifications
+
+This plugin automatically triages incoming vendor emails and routes them to your team for review.
+
+## How it works
+
+1. Send vendor emails to your CableKnit inbound address
+2. The AI extracts key information and creates a review task
+3. Your team reviews and decides the next action from the Decision Queue
+```
+
+## Step 7: Upload to sandbox
+
+Zip your `.sweater` folder and upload it in the Developer Portal under **Plugins → Upload Bundle**.
+
+If there are validation errors, fix them and re-upload. The portal shows file-level error details.
+
+## Step 8: Trigger a test run
+
+In the Developer Portal under **Sandbox → Runs**, click **Trigger Run**. Select your automation and provide a test payload:
+
+```json
+{
+  "from": "vendor@example.com",
+  "subject": "Invoice #1234 - Please Review",
+  "body": "Hi, we wanted to follow up on invoice #1234 submitted last week. Please let us know if you need anything."
+}
+```
+
+## Step 9: Resolve the decision
+
+Go to **Sandbox → Decisions**. You'll see the decision your automation created with the AI's assessment. Click **Resolve** and select an outcome.
+
+Watch the run complete in **Sandbox → Runs**.
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>
+- Read [Skills](/skills) to understand how to write effective system prompts
+- Read [Automations](/automations) for the full workflow definition reference
+- Read [Artifacts](/artifacts) to learn how your automation can produce documents and reports

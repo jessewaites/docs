@@ -1,0 +1,63 @@
+---
+title: Managing Plugins
+description: Update, version, and manage your published plugins.
+---
+
+## Updating a published plugin
+
+To update a plugin, increment the `version` in `plugin.json`, make your changes, re-zip the bundle, and upload it.
+
+Re-uploading a bundle that matches an existing plugin slug updates the plugin in place:
+- Skills, automations, and docs are updated to match the new bundle
+- Files you remove from the bundle are deleted
+- Existing installs receive the update automatically
+
+If your plugin has a status of `approved` or `live`, re-uploading resets it to `draft` and requires re-submission. Plan updates accordingly — batch changes before submitting rather than making small incremental submissions.
+
+<Note>
+Existing `AutomationRun` records are not affected by updates. In-progress runs continue executing against the workflow definition that was active when they started (the `workflow_definition_snapshot`). Only new runs use the updated definition.
+</Note>
+
+### Version numbering
+
+Use semver: `MAJOR.MINOR.PATCH`
+
+- `PATCH` — bug fixes, prompt improvements, documentation updates
+- `MINOR` — new automations, new skills, non-breaking changes
+- `MAJOR` — breaking changes to workflow structure, removed automations, significant behavior changes
+
+## Managing installs
+
+View all companies that have installed your plugin under **Plugins → [Your Plugin] → Installs**.
+
+You can see:
+- When each company installed your plugin
+- Whether the install is active
+- The version they're running
+
+## Private plugin access
+
+For `private` plugins, you control which companies can install your plugin. Go to **Plugins → [Your Plugin] → Access** to grant or revoke access to specific companies.
+
+Companies need their CableKnit company UUID to be granted access. They can find it in their account settings.
+
+## Deprecating a plugin
+
+If you need to stop offering a plugin:
+
+1. Set `visibility` to `private` and re-submit — this removes it from the Marketplace but doesn't affect existing installs
+2. Contact existing customers with advance notice
+3. Set the plugin to inactive in the Developer Portal — this disables all active installs
+
+Do not delete a plugin with active installs without notifying customers first.
+
+## Monitoring your plugins
+
+The Developer Portal provides aggregate metrics for each of your published plugins:
+
+- Active installs over time
+- Run volume and success rate
+- Decision resolution rates and average time to resolve
+- Error rates by automation
+
+Use these to understand how companies are using your plugin and identify automations that frequently fail or produce low-quality decisions.

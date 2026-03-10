@@ -1,0 +1,197 @@
+---
+title: Conditions
+description: Complete reference for all workflow transition condition types.
+---
+
+Conditions determine when a transition fires. When a state's entry action completes, CableKnit evaluates all outgoing transitions in priority order and fires the first one whose condition is satisfied.
+
+## automatic
+
+Always matches. Use for unconditional transitions — the run moves immediately to the next state after the entry action completes.
+
+```json
+{ "type": "automatic" }
+```
+
+Use `automatic` when a state has exactly one outgoing path and no branching logic.
+
+---
+
+## fallback
+
+Always matches. Used as the catch-all transition of last resort. Always set the highest priority number among a state's transitions.
+
+```json
+{ "type": "fallback" }
+```
+
+<Warning>
+Every non-terminal state must have a `fallback` transition. If no other condition matches and there's no fallback, the run will fail. Bundle validation enforces this.
+</Warning>
+
+---
+
+## decision_outcome
+
+Matches when a human decision resolves with a specific outcome. Only valid on states that follow a `request_decision` action.
+
+```json
+{
+  "type": "decision_outcome",
+  "matches": "approve"
+}
+```
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `matches` | string | Yes | The `key` of the decision option that was selected |
+
+Create one transition per decision option, each with a different `matches` value. Add a `fallback` to handle unexpected outcomes.
+
+```json
+[
+  { "from_state": "review", "to_state": "approved", "priority": 1, "condition": { "type": "decision_outcome", "matches": "approve" } },
+  { "from_state": "review", "to_state": "rejected", "priority": 2, "condition": { "type": "decision_outcome", "matches": "reject" } },
+  { "from_state": "review", "to_state": "needs_info", "priority": 3, "condition": { "type": "decision_outcome", "matches": "request_more_info" } },
+  { "from_state": "review", "to_state": "failed", "priority": 99, "condition": { "type": "fallback" } }
+]
+```
+
+---
+
+## threshold
+
+Compares a context value against a threshold using a comparison operator.
+
+```json
+{
+  "type": "threshold",
+  "field": "case_context.assessment.confidence_score",
+  "operator": "gte",
+  "value": 0.8
+}
+```
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `field` | string | Yes | Dot-notation path to the value in context |
+| `operator` | enum | Yes | See operators below |
+| `value` | any | Yes | The value to compare against |
+
+### Operators
+
+| Operator | Description |
+|---|---|
+| `eq` | Equal to |
+| `neq` | Not equal to |
+| `lt` | Less than |
+| `lte` | Less than or equal to |
+| `gt` | Greater than |
+| `gte` | Greater than or equal to |
+| `in` | Value is in the provided array |
+| `not_in` | Value is not in the provided array |
+| `contains` | String contains the value |
+| `is_null` | Field is null or missing |
+| `is_not_null` | Field is not null |
+
+---
+
+## field_match
+
+Simple equality check. Shorthand for `threshold` with `eq` operator.
+
+```json
+{
+  "type": "field_match",
+  "field": "case_context.assessment.request_type",
+  "value": "invoice"
+}
+```
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `field` | string | Yes | Dot-notation path to the value in context |
+| `value` | any | Yes | The value to match |
+
+---
+
+## expression
+
+Boolean logic tree combining multiple conditions with `and`, `or`, and `not` operators.
+
+```json
+{
+  "type": "expression",
+  "and": [
+    { "field": "case_context.assessment.urgency", "operator": "in", "value": ["high", "critical"] },
+    {
+      "or": [
+        { "field": "case_context.assessment.category", "operator": "eq", "value": "compliance" },
+        { "field": "case_context.assessment.category", "operator": "eq", "value": "safety" }
+      ]
+    }
+  ]
+}
+```
+
+Leaf nodes use the same `field` / `operator` / `value` format as `threshold`. Nesting is supported to any depth.
+
+| Parameter | Type | Description |
+|---|---|---|
+| `and` | array | All conditions must match |
+| `or` | array | At least one condition must match |
+| `not` | object | Condition must not match |
+
+---
+
+## ai_route
+
+Uses the LLM to evaluate whether a transition should fire. Useful for routing decisions that require natural language understanding rather than simple value comparisons.
+
+```json
+{
+  "type": "ai_route",
+  "prompt": "Based on the assessment, does this application contain any compliance violations or missing mandatory certifications?",
+  "expected_route": "yes",
+  "context_keys": ["assessment"]
+}
+```
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `prompt` | string | Yes | Question or instruction for the LLM |
+| `expected_route` | string | Yes | The LLM's response must match this value for the condition to be satisfied |
+| `context_keys` | array | No | Context keys to include in the LLM's input |
+
+<Tip>
+Use `ai_route` for nuanced classification that threshold or field_match can't handle. For example: "Is this email from an existing vendor or a new inquiry?" or "Does this incident report describe a safety-critical situation?"
+</Tip>
+
+Keep `expected_route` values simple and unambiguous (`"yes"` / `"no"`, single category names). Always pair `ai_route` transitions with a `fallback` in case the LLM's response doesn't match any expected route.
+
+---
+
+## timeout
+
+Fires when a state has been active for longer than its `timeout` duration. Set the `timeout` field (in seconds) on the state definition, then add a `timeout` transition.
+
+```json
+// State definition
+{
+  "name": "waiting_for_reply",
+  "entry_action": { "type": "send_and_wait", ... },
+  "timeout": 259200
+}
+
+// Transition
+{
+  "from_state": "waiting_for_reply",
+  "to_state": "escalated",
+  "priority": 1,
+  "condition": { "type": "timeout" }
+}
+```
+
+Timeout transitions are evaluated by a background job. They fire within a few minutes of the timeout duration elapsing — not at the exact second.
+
+Use `timeout` to handle situations where a human doesn't respond within an expected window, or an external party doesn't reply to an email.

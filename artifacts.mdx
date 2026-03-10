@@ -1,0 +1,167 @@
+---
+title: Artifacts
+description: Produce documents, reports, spreadsheets, and other outputs from your workflows.
+---
+
+Artifacts are structured outputs produced during a workflow run — documents, reports, charts, spreadsheets, email drafts, and more. They attach to the run and are visible to human reviewers when they evaluate Decisions.
+
+A well-designed plugin doesn't just route approvals — it produces the materials the reviewer needs to make a good decision. An `ai_assess` step that generates a formatted compliance report as an artifact means the reviewer sees the full analysis right there in the Decision Queue, not just a notification.
+
+## How artifacts are produced
+
+The LLM produces artifacts using a special XML tag in its response:
+
+```xml
+<artifact name="Compliance Assessment" type="report">
+## Subcontractor Compliance Report
+
+**Company:** Acme Contractors
+**Trade:** Electrical
+**Assessment Date:** March 10, 2026
+
+### Findings
+
+The application is missing the following required documents:
+- Certificate of Insurance (expired)
+- State electrical license (not provided)
+
+### Recommendation
+
+Do not approve until insurance and license documentation are provided.
+</artifact>
+```
+
+CableKnit parses this tag from the LLM's response and creates an `Artifact` record automatically. No additional configuration is needed — the LLM just needs to produce the tag in the right format.
+
+## Artifact tag format
+
+```xml
+<artifact name="DISPLAY_NAME" type="TYPE">CONTENT</artifact>
+```
+
+| Attribute | Description |
+|---|---|
+| `name` | Display name shown in the UI |
+| `type` | The artifact type (see below) |
+
+Content can be Markdown, plain text, JSON, or any structured format depending on the type.
+
+## Artifact types
+
+| Type | Use case | Content format |
+|---|---|---|
+| `document` | General documents, memos, letters | Markdown or plain text |
+| `report` | Structured analysis reports | Markdown |
+| `email_draft` | Draft emails for human review before sending | Plain text or Markdown |
+| `spreadsheet` | Tabular data | JSON (array of objects) |
+| `csv` | CSV-formatted data | CSV text |
+| `chart` | Chart data for visualization | JSON (see below) |
+| `json_data` | Structured JSON for downstream use | JSON |
+| `schedule` | Scheduling data | JSON |
+| `image` | Image content | File (via ActiveStorage) |
+| `options_selection` | Structured option sets | JSON |
+| `other` | Anything else | Any |
+
+## Producing a report
+
+Reports are the most common artifact type. Write Markdown in the artifact content:
+
+```xml
+<artifact name="Invoice Review Summary" type="report">
+## Invoice Review — {{vendor_name}}
+
+**Invoice Number:** {{invoice_number}}
+**Amount:** ${{amount}}
+**Submitted:** {{submitted_date}}
+
+### AI Assessment
+
+{{assessment_summary}}
+
+### Recommended Action
+
+{{recommended_action}}
+</artifact>
+```
+
+Prompt the LLM to produce the artifact in your `ai_assess` system prompt:
+
+```json
+{
+  "type": "ai_assess",
+  "system_prompt": "You are reviewing an invoice submission. Extract the key details and produce a structured report.\n\nRespond with JSON containing your assessment fields, followed by an artifact tag containing a formatted Markdown report:\n\n<artifact name=\"Invoice Review\" type=\"report\">\nYour Markdown report here\n</artifact>",
+  "output_key": "assessment"
+}
+```
+
+## Producing a JSON artifact
+
+For structured data that will be consumed programmatically or displayed as a chart:
+
+```xml
+<artifact name="Monthly Compliance Metrics" type="json_data">
+{
+  "total_applications": 47,
+  "approved": 31,
+  "rejected": 8,
+  "pending": 8,
+  "approval_rate": 0.66,
+  "common_rejection_reasons": ["missing_insurance", "expired_license", "incomplete_application"]
+}
+</artifact>
+```
+
+## Artifacts and Decisions
+
+Artifacts attach to runs and are visible in the Decision Queue. When a reviewer opens a Decision, they see all artifacts produced during that run — giving them the full context to make an informed decision.
+
+To ensure your artifacts reach the reviewer, produce them in an `ai_assess` step before the `request_decision` step:
+
+```json
+// Step 1: assess — produces artifact
+{
+  "name": "assess",
+  "entry_action": {
+    "type": "ai_assess",
+    "system_prompt": "Assess this application and produce a compliance report artifact."
+  }
+}
+
+// Step 2: review — reviewer sees the artifact
+{
+  "name": "review",
+  "entry_action": {
+    "type": "request_decision",
+    "title": "Application Review",
+    "decision_options": [...]
+  }
+}
+```
+
+## Artifact versioning
+
+Artifacts support versioning via a `parent_artifact_id` reference. When the LLM produces a new version of an existing artifact (for example, a revised report after additional information is received), CableKnit tracks the version history. Reviewers can see the latest version and browse previous versions.
+
+## Email drafts
+
+The `email_draft` type is designed for workflows where a human should review and send an email rather than having the system send it automatically:
+
+```xml
+<artifact name="Vendor Response Draft" type="email_draft">
+Subject: Re: Invoice #1234 — Additional Information Required
+
+Dear {{vendor_name}},
+
+Thank you for submitting invoice #1234. We have reviewed your submission and require the following additional information before we can process payment:
+
+1. Updated certificate of insurance (current certificate expired on January 15, 2026)
+2. Signed W-9 form
+
+Please provide these documents at your earliest convenience.
+
+Best regards,
+The Accounts Payable Team
+</artifact>
+```
+
+The reviewer sees the draft in their Decision Queue, can edit it, and sends it from within CableKnit.

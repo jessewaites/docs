@@ -1,0 +1,157 @@
+---
+title: Trigger Types
+description: How automations are started — schedules, webhooks, inbound email, and connector events.
+---
+
+Every automation has a `trigger_type` that defines what starts a new run. When the trigger fires, CableKnit creates an `AutomationRun` and populates `case_context.trigger_data` with the trigger payload.
+
+## inbound_email
+
+Triggers when an email is received at the automation's inbound address. CableKnit parses the email and passes the content as the trigger payload.
+
+```json
+{
+  "trigger_type": "inbound_email",
+  "trigger_config": {}
+}
+```
+
+No configuration required. When a company installs your plugin, CableKnit assigns a unique inbound email address for this automation. Any email sent to that address starts a new run.
+
+### Trigger payload
+
+```json
+{
+  "from": "vendor@example.com",
+  "to": "intake-abc123@in.cableknit.ai",
+  "subject": "Invoice #1234 - Follow Up",
+  "body": "Hi, we wanted to follow up on invoice #1234...",
+  "html_body": "<p>Hi, we wanted to follow up...</p>",
+  "attachments": []
+}
+```
+
+Access in your workflow: `{{case_context.trigger_data.from}}`, `{{case_context.trigger_data.subject}}`, etc.
+
+<Note>
+Always mark `trigger_data.body` as an `untrusted_key` in `ai_assess` actions. Email bodies come from external senders and may contain content designed to manipulate LLM behavior.
+</Note>
+
+---
+
+## schedule
+
+Triggers on a cron schedule. Useful for recurring reports, daily reviews, and periodic compliance checks.
+
+```json
+{
+  "trigger_type": "schedule",
+  "trigger_config": {
+    "cron": "0 9 * * 1",
+    "timezone": "America/Chicago"
+  }
+}
+```
+
+| Config field | Type | Required | Description |
+|---|---|---|---|
+| `cron` | string | Yes | Standard 5-part cron expression |
+| `timezone` | string | No | IANA timezone name. Defaults to `UTC`. |
+
+### Common cron patterns
+
+| Schedule | Expression |
+|---|---|
+| Every Monday at 9am | `0 9 * * 1` |
+| Weekdays at 8am | `0 8 * * 1-5` |
+| First of every month at 6am | `0 6 1 * *` |
+| Every day at midnight | `0 0 * * *` |
+| Every hour | `0 * * * *` |
+
+### Trigger payload
+
+Scheduled runs receive a minimal payload:
+
+```json
+{
+  "triggered_at": "2026-03-10T09:00:00Z",
+  "trigger_type": "schedule"
+}
+```
+
+---
+
+## webhook
+
+Triggers when an HTTP POST is received at the automation's webhook URL. CableKnit generates a unique URL for each automation when a company installs your plugin.
+
+```json
+{
+  "trigger_type": "webhook",
+  "trigger_config": {}
+}
+```
+
+The company can find their webhook URL in the automation settings. Any POST to that URL with a JSON body starts a new run.
+
+### Trigger payload
+
+The full JSON body of the POST request is available as `trigger_data`:
+
+```json
+{
+  "trigger_data": {
+    "record_id": "abc123",
+    "status": "submitted",
+    "submitted_by": "jane@example.com"
+  }
+}
+```
+
+---
+
+## event
+
+Triggers when a connected service emits a specific event. Requires a connector to be configured.
+
+```json
+{
+  "trigger_type": "event",
+  "trigger_config": {
+    "event_type": "ConnectorEvent",
+    "channel": "envelopes",
+    "conditions": [
+      { "field": "payload.status", "operator": "eq", "value": "completed" }
+    ]
+  }
+}
+```
+
+| Config field | Type | Required | Description |
+|---|---|---|---|
+| `event_type` | string | Yes | The type of connector event to listen for |
+| `channel` | string | No | The event channel (varies by connector) |
+| `conditions` | array | No | Filter conditions — only trigger if these match the event payload |
+
+### Connector event channels
+
+| Connector | Channel | Event types |
+|---|---|---|
+| DocuSign | `envelopes` | `completed`, `declined`, `voided` |
+| Slack | `events` | Various workspace events |
+| Procore | `events` | `create`, `update` on RFIs, Submittals, ChangeOrders, DailyLogs |
+| Microsoft 365 | `notifications` | `created`, `updated` on mail, files |
+
+### Declaring connector requirements
+
+If your automation uses the `event` trigger type, declare the required connector in `plugin.json`:
+
+```json
+{
+  "requirements": {
+    "connectors": ["procore"]
+  }
+}
+```
+
+Companies that haven't connected the required service won't be able to install your plugin until they do.

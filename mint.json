@@ -36,19 +36,37 @@
   "navigation": [
     {
       "group": "Getting Started",
-      "pages": ["introduction", "quickstart", "bundle-format"]
+      "pages": [
+        "introduction",
+        "quickstart",
+        "bundle-format"
+      ]
     },
     {
       "group": "Building Plugins",
-      "pages": ["skills", "automations", "artifacts", "connectors"]
+      "pages": [
+        "skills",
+        "automations",
+        "artifacts",
+        "connectors"
+      ]
     },
     {
       "group": "Reference",
-      "pages": ["entry-actions", "conditions", "trigger-types", "context"]
+      "pages": [
+        "entry-actions",
+        "conditions",
+        "trigger-types",
+        "context"
+      ]
     },
     {
       "group": "Publishing",
-      "pages": ["testing", "submission", "managing-plugins"]
+      "pages": [
+        "testing",
+        "submission",
+        "managing-plugins"
+      ]
     }
   ],
   "footerSocials": {

@@ -1,0 +1,51 @@
+---
+title: Introduction
+description: Build workflow products without building the human-in-the-loop stack.
+---
+
+CableKnit is an AI-powered operations platform for regulated industries. It handles the hard parts of workflow automation — Decisions, notifications, audit trails, escalations, inbound and outbound email, push notifications — so your customers' operations teams can focus on doing their jobs.
+
+As a publisher, you build **plugins**: bundles of skills, automations, and documentation that extend CableKnit for a specific industry or use case. When a company installs your plugin, they get fully working automations running on CableKnit's infrastructure without you having to build any of it.
+
+## What you build
+
+A plugin is a `.sweater` bundle — a folder containing:
+
+- **Skills** — instructions that shape how the AI behaves in chat for your use case
+- **Automations** — state machine workflow definitions that run when triggered by an event, schedule, or webhook
+- **Documentation** — help content shown to the companies that install your plugin
+
+That's it. No servers to run. No auth to implement. No mobile apps to build. You define the workflow logic; CableKnit provides everything else.
+
+## What CableKnit provides
+
+When your automation runs, it has access to the full CableKnit platform:
+
+- **Decisions** — pause a workflow and present a structured decision to a human. They see it in the CableKnit Mac app and iOS Decision Queue. You get the outcome back as a condition in your workflow.
+- **Notifications** — send email, in-app, or SMS notifications at any workflow step
+- **Slack and Teams** — post messages directly to your customer's Slack channels or Teams
+- **Artifacts** — produce documents, spreadsheets, reports, charts, and email drafts that are attached to the run and visible to reviewers
+- **Inbound email** — trigger automations from incoming email and reply to resume a paused run
+- **Connectors** — subscribe to events from Salesforce, HubSpot, Google Workspace, DocuSign, Procore, Slack, Microsoft 365, and more
+
+## How it works end to end
+
+1. A company installs your plugin from the CableKnit Marketplace
+2. Your automation templates are instantiated as live automations for that company
+3. A trigger fires (an email arrives, a schedule fires, a connector event occurs)
+4. CableKnit runs your workflow definition step by step
+5. When a step requires human input, a Decision is created and pushed to the company's team
+6. A team member reviews and decides — from the Mac app, iOS app, or email
+7. The workflow resumes with the outcome and continues to completion
+
+Your workflow logic runs the same way for every company that installs your plugin. You build it once.
+
+## Before you start
+
+To build and publish a plugin you need:
+
+- A CableKnit publisher account — [apply here](https://cableknit.ai/developer)
+- Basic familiarity with JSON
+- An understanding of state machine concepts (states and transitions)
+
+No programming experience is required for basic plugins. For advanced use cases involving custom service classes, you'll work with CableKnit directly.

@@ -1,0 +1,125 @@
+---
+title: Testing
+description: Use your sandbox company to test automations before submission.
+---
+
+Every publisher gets a sandbox company — an isolated CableKnit company pre-configured for development. Use it to upload bundles, trigger test runs, resolve Decisions, and inspect the full output of your automations before you submit for review.
+
+## What the sandbox provides
+
+- A fully isolated company with all CableKnit features enabled
+- The ability to install any of your own plugins regardless of visibility or approval status
+- The Developer Portal's sandbox tools for triggering runs, inspecting context, and resolving decisions
+- No billing — sandbox runs don't incur charges
+
+## Uploading a bundle
+
+Zip your `.sweater` folder and upload it in the Developer Portal under **Plugins → Upload Bundle**.
+
+The server validates your bundle on upload. If validation fails, you'll see a list of errors with file-level details:
+
+```
+✗ automations/vendor-review.json: State 'notify_vendor' has no outgoing transitions
+✗ plugin.json: price_cents (1900) is below the calculated cost floor (2400)
+```
+
+Fix the errors and re-upload. There's no limit on sandbox re-uploads.
+
+## Triggering a test run
+
+Once your bundle is uploaded and your plugin is installed in the sandbox, trigger a run from **Sandbox → Runs → Trigger Run**.
+
+Select an automation and provide a test payload matching your trigger type.
+
+### inbound_email payload
+
+```json
+{
+  "from": "vendor@testcompany.com",
+  "subject": "Invoice #5678 - Payment Request",
+  "body": "Hi, we're following up on invoice #5678 submitted two weeks ago. The total amount is $4,250. Please let us know if you need any additional documentation."
+}
+```
+
+### webhook payload
+
+```json
+{
+  "record_id": "test-123",
+  "status": "submitted",
+  "submitted_by": "jane@example.com",
+  "submitted_at": "2026-03-10T09:00:00Z"
+}
+```
+
+### event payload
+
+```json
+{
+  "event_type": "ConnectorEvent",
+  "channel": "envelopes",
+  "payload": {
+    "envelope_id": "env-abc123",
+    "status": "completed",
+    "sender": "legal@yourco.com",
+    "subject": "Subcontractor Agreement — Acme Construction"
+  }
+}
+```
+
+## Inspecting a run
+
+After triggering a run, go to **Sandbox → Runs** and click the run to open it.
+
+You'll see:
+- The current workflow state and status
+- A timeline of every state transition
+- The full `case_context` object as it accumulates through the run
+- Any artifacts produced during the run
+- Any notifications or emails sent
+
+Use the context inspector to verify that `ai_assess` steps are writing the keys you expect and that your interpolation expressions will resolve correctly.
+
+## Resolving a Decision
+
+If your automation includes a `request_decision` step, the run will pause at `paused_for_decision` status. Go to **Sandbox → Decisions** to see the pending Decision.
+
+The Decision shows:
+- Title and description (with any interpolated values resolved)
+- The context keys you specified in `context_keys`
+- Any artifacts attached to the run
+- The decision options
+
+Click **Resolve** and select an outcome. The run resumes immediately and moves to the next state.
+
+<Tip>
+Test every branch of your decision tree. Trigger multiple runs and resolve each Decision with a different outcome to confirm that all transitions fire correctly.
+</Tip>
+
+## Testing email flows
+
+For `inbound_email` triggers, CableKnit assigns a real inbound email address to each automation in the sandbox. Find it under **Sandbox → Automations → [Your Automation] → Inbound Address**.
+
+You can send actual emails to this address to test the full email parsing pipeline. This is especially useful for testing how `ai_assess` handles real email content vs. clean JSON payloads.
+
+## Testing send_and_wait
+
+Automations using `send_and_wait` pause at `paused_for_input` status waiting for an inbound email reply. In the sandbox, you can simulate a reply from **Sandbox → Runs → [Your Run] → Simulate Reply**. Paste in a reply body and the run will resume as if the reply was received by email.
+
+## Common issues
+
+**Run fails immediately with "transition not found"**
+
+No outgoing transition fired from the initial state. Check that your initial state has a valid outgoing transition and that any `ai_assess` output_key is being written correctly.
+
+**ai_assess output is missing or null**
+
+The LLM's response didn't match the expected schema. Check the run's context inspector for the raw LLM response. Your system prompt may need to be more explicit about the expected output format.
+
+**Decision not appearing in Sandbox → Decisions**
+
+Check the run's current status. If it's `failed`, check the error message in the run detail view. If it's still `running`, the `request_decision` step may not have executed yet.
+
+**Interpolation showing as literal text**
+
+The context key doesn't exist or is misspelled. Verify in the context inspector that the key is present before the step that references it.

@@ -1,0 +1,131 @@
+---
+title: Context
+description: How data flows through a workflow run via case_context.
+---
+
+Every automation run has a `case_context` object that accumulates data as the workflow progresses. Actions write to it; subsequent steps read from it. Understanding context is key to building workflows that pass information between steps.
+
+## How context is built
+
+Context starts with the trigger payload and grows with each step:
+
+| Source | Key written | Data |
+|---|---|---|
+| Run start | `trigger_data` | The full trigger payload (email, webhook body, event data) |
+| `ai_assess` | `[output_key]` | Parsed JSON from the LLM response |
+| `send_and_wait` | `[output_key]` | Reply metadata: `notified_at`, `recipients`, `wait_for` |
+| Decision resolved | `decision_outcome` | The key of the option selected by the reviewer |
+| Run cancelled | `cancelled_at` | ISO8601 timestamp |
+
+## Reading context
+
+### Interpolation in strings
+
+Use double-brace syntax to embed context values in action strings:
+
+```json
+"title": "Application from {{case_context.assessment.company_name}}"
+"body": "Submitted by {{case_context.trigger_data.from}} on {{case_context.trigger_data.subject}}"
+```
+
+Dot notation navigates nested objects: `case_context.assessment.missing_fields.0` accesses the first element of an array.
+
+### In conditions
+
+Use dot-notation paths in `threshold`, `field_match`, and `expression` conditions:
+
+```json
+{
+  "type": "threshold",
+  "field": "case_context.assessment.confidence_score",
+  "operator": "gte",
+  "value": 0.8
+}
+```
+
+### In ai_assess input_keys
+
+Pass a subset of context to the LLM instead of the full context:
+
+```json
+{
+  "type": "ai_assess",
+  "input_keys": ["trigger_data", "assessment"],
+  "system_prompt": "..."
+}
+```
+
+## Writing context
+
+### From ai_assess
+
+Set `output_key` to store the LLM's parsed JSON response:
+
+```json
+{
+  "type": "ai_assess",
+  "system_prompt": "Extract the vendor name and invoice amount. Respond as JSON.",
+  "output_key": "invoice_data",
+  "output_schema": {
+    "vendor_name": "string",
+    "amount": "number",
+    "invoice_number": "string"
+  }
+}
+```
+
+After this step, `case_context.invoice_data.vendor_name` is available everywhere.
+
+### From send_and_wait
+
+```json
+{
+  "type": "send_and_wait",
+  "output_key": "vendor_reply"
+}
+```
+
+Stores: `case_context.vendor_reply.notified_at`, `case_context.vendor_reply.recipients`, `case_context.vendor_reply.wait_for`.
+
+## Special keys
+
+| Key | Description |
+|---|---|
+| `trigger_data` | Always present. The raw trigger payload. |
+| `decision_outcome` | Set when a `request_decision` step is resolved. Contains the selected option key. |
+| `cancelled_at` | Set if the run is cancelled. |
+| `_injection_flags` | Internal. Auto-managed by CableKnit. Stripped before LLM calls. |
+
+## Security: untrusted content
+
+Any data that comes from an external source — email bodies, webhook payloads, connector event data — should be marked as untrusted in `ai_assess` steps. This wraps the content in a safety boundary that tells the LLM to treat it as data to be processed, not instructions to be followed.
+
+```json
+{
+  "type": "ai_assess",
+  "input_keys": ["trigger_data"],
+  "untrusted_keys": ["trigger_data.body", "trigger_data.subject"],
+  "system_prompt": "Extract the key information from this email..."
+}
+```
+
+<Warning>
+Failing to mark external data as untrusted opens your workflow to prompt injection — a malicious sender could craft email content designed to hijack the LLM's behavior. Always use `untrusted_keys` for email bodies, webhook payloads, and user-supplied text.
+</Warning>
+
+## Context across steps: an example
+
+Here's how context accumulates in a multi-step workflow:
+
+**Step 1: assess (ai_assess)**
+- Reads: `trigger_data` (the inbound email)
+- Writes: `case_context.assessment` = `{ vendor_name: "Acme", request_type: "invoice", urgency: "high" }`
+
+**Step 2: request_review (request_decision)**
+- Reads: `case_context.assessment.vendor_name` for the title
+- Writes: `case_context.decision_outcome` = `"approve"` when resolved
+
+**Step 3: notify (notify)**
+- Reads: `case_context.assessment.vendor_name` and `case_context.decision_outcome` for the message body
+
+Each step builds on what the previous steps produced. Design your `output_key` names to be clear and consistent — they're the API your workflow uses internally.

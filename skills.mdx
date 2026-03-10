@@ -1,0 +1,117 @@
+---
+title: Skills
+description: Shape AI behavior in chat with skill system prompts.
+---
+
+Skills define how the AI behaves in CableKnit's chat interface for your plugin's use case. When a company installs your plugin, your skills become part of the AI's context — shaping its knowledge, tone, and capabilities for that industry or workflow.
+
+## What skills do
+
+Each skill has a `system_prompt` that is injected into the LLM's context when the skill is active. The prompt tells the AI what it knows, how to behave, and what it can help with.
+
+Skills also have a `trigger_description` — a plain-language description of when the skill should activate. CableKnit's AI uses this to route conversations to the right skill automatically. A user asking "how do I submit an RFI?" triggers a construction skills package; a user asking "what's the invoice status?" triggers an accounting skill.
+
+## Skill file format
+
+Each skill is a JSON file in your bundle's `skills/` folder.
+
+```json
+{
+  "name": "Subcontractor Intake",
+  "slug": "subcontractor-intake",
+  "description": "Handles initial subcontractor onboarding inquiries.",
+  "system_prompt": "You are an onboarding assistant for a construction company. You help project managers and compliance officers manage incoming subcontractor applications.\n\nYou can:\n- Explain the onboarding process and required documents\n- Help assess whether a subcontractor application is complete\n- Guide users through compliance requirements\n- Draft follow-up communications to subcontractors\n\nAlways be professional and specific. When a user asks about a subcontractor, ask for the company name and trade if not provided.",
+  "trigger_description": "Use this skill when a user asks about subcontractor onboarding, applications, compliance documentation, or trade contractor intake.",
+  "action_type": "chat",
+  "position": 1
+}
+```
+
+### Field reference
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | Yes | Display name |
+| `slug` | string | Yes | Unique within the bundle. Lowercase, hyphens only. |
+| `description` | string | No | Internal description (not shown to end users) |
+| `system_prompt` | string | Yes | The instructions injected into the LLM context |
+| `trigger_description` | string | No | Plain-language description of when this skill should activate |
+| `action_type` | string | Yes | Must be `"chat"` for publisher bundles |
+| `position` | integer | No | Sort order when multiple skills are active. Lower numbers first. |
+
+## How skills are injected
+
+Your skill's system prompt is wrapped in XML and injected into the LLM's system context:
+
+```xml
+<skills>
+<skill name="subcontractor-intake" plugin="subcontractor-onboarding">
+You are an onboarding assistant for a construction company...
+</skill>
+</skills>
+```
+
+This means your prompt text should not include XML tags — they'll be added automatically.
+
+## Writing effective system prompts
+
+A good skill system prompt does four things:
+
+**1. Establishes a clear role**
+
+Start with a one-sentence role statement. Be specific about the industry and function.
+
+```
+You are a compliance assistant for food distribution companies operating under FSMA regulations.
+```
+
+Not:
+```
+You are a helpful assistant.
+```
+
+**2. Defines capabilities explicitly**
+
+List what the AI can and cannot help with. This prevents the AI from wandering into topics your plugin doesn't cover.
+
+```
+You can:
+- Explain FSMA 204 traceability requirements
+- Help users assess whether their lot code records are compliant
+- Draft corrective action notices for traceability gaps
+
+You cannot:
+- Provide legal advice
+- Access real-time FDA databases
+- Process actual product recalls
+```
+
+**3. Specifies format expectations**
+
+If you want structured responses, say so.
+
+```
+When assessing a traceability record, always respond with:
+1. A compliance status (Compliant / Non-compliant / Needs review)
+2. A list of any missing or incomplete fields
+3. Recommended next steps
+```
+
+**4. Handles missing context gracefully**
+
+Tell the AI what to do when it doesn't have enough information.
+
+```
+If the user hasn't provided a specific lot code or supplier name, ask for it before proceeding with an assessment.
+```
+
+## Multiple skills in one plugin
+
+A plugin can have multiple skills. Each skill handles a different aspect of your use case. The AI routes to the right skill based on `trigger_description`.
+
+For example, a construction plugin might have:
+- `rfi-management` — handles RFI creation, routing, and tracking
+- `submittal-review` — handles submittal workflows and approvals
+- `daily-log-assistant` — helps with daily log entries and exceptions
+
+Keep skills focused. A skill that does everything has a weaker `trigger_description` and produces less precise responses than a skill with a clear, narrow purpose.

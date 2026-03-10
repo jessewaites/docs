@@ -1,0 +1,95 @@
+---
+title: Submission
+description: Submit your plugin for review and publish it to the Marketplace.
+---
+
+When your plugin is tested and ready to share, you submit it for review. The review process ensures that published plugins meet quality and safety standards before they're available to all CableKnit companies.
+
+## Visibility and review
+
+Review requirements depend on your plugin's visibility setting:
+
+| Visibility | Review required | Who can install |
+|---|---|---|
+| `private` | No | Companies you explicitly grant access to |
+| `unlisted` | No | Anyone with the direct install link |
+| `public` | Yes | All CableKnit companies via the Marketplace |
+
+If you're building for a specific customer or testing with a small group, use `private` or `unlisted` — no review needed. When you're ready to list in the Marketplace, switch to `public` and submit.
+
+## Before you submit
+
+Work through this checklist before submitting for review:
+
+**Bundle**
+- [ ] `plugin.json` has all required fields
+- [ ] `version` is set correctly (increment it from the last published version for updates)
+- [ ] `price_cents` is at or above the cost floor
+- [ ] `visibility` is set to `public`
+- [ ] `README.md` is present and describes what your plugin does
+
+**Testing**
+- [ ] You've triggered a test run for each automation
+- [ ] You've resolved a Decision for every `request_decision` step
+- [ ] You've tested every branch of your workflow (every `decision_outcome`, every `ai_route`)
+- [ ] Timeout transitions have been verified
+- [ ] Artifacts look correct and contain the information reviewers need
+
+**Documentation**
+- [ ] At least one doc page per automation
+- [ ] Getting started guide explains prerequisites and setup
+- [ ] Any required connector configuration is documented
+
+## Submitting
+
+In the Developer Portal, go to **Plugins → [Your Plugin] → Submit for Review**.
+
+You'll be asked to provide:
+- **Release notes** — what's new or changed in this version
+- **Test account credentials** — if your plugin requires a connector, provide test credentials for the reviewer
+- **Any special instructions** for the reviewer
+
+Once submitted, your plugin status changes to `under_review`. You'll receive an email when the review is complete.
+
+## What reviewers check
+
+The CableKnit review team evaluates:
+
+**Functionality** — does the automation run end to end? Does every branch work?
+
+**AI prompt quality** — are system prompts clear, specific, and safe? Are external inputs marked as untrusted?
+
+**Decision quality** — do Decisions contain enough context for a reviewer to make an informed decision? Are artifacts informative?
+
+**Documentation** — is the plugin documented well enough for an operations team to understand and use it?
+
+**Pricing** — is the price reasonable for the value provided?
+
+## Review timeline
+
+Most reviews complete within 3–5 business days. Complex plugins with multiple connectors or many automations may take longer.
+
+If the reviewer has questions or requests changes, you'll receive an email with specific feedback. You can address the feedback and re-submit without starting the review process over.
+
+## Stripe Connect setup
+
+To receive revenue from plugin installs, you need to connect a Stripe account before your first plugin goes live. CableKnit uses Stripe Connect to send your share of subscription revenue (80%) directly to your account.
+
+Set up Stripe Connect in the Developer Portal under **Account → Payouts → Connect Stripe**.
+
+You'll be redirected to Stripe to create or connect an Express account. The process takes about 5 minutes.
+
+<Note>
+You can submit and have a plugin approved before setting up Stripe Connect, but CableKnit can't pay out revenue until your payout account is connected. Set it up before your plugin goes live.
+</Note>
+
+## Revenue and payouts
+
+When a company installs your public plugin:
+- They're charged $[your price]/month via their CableKnit subscription
+- 80% of that goes to your Stripe account
+- 20% is retained by CableKnit
+
+Payouts are processed monthly. You can see your earnings and payout history in the Developer Portal under **Account → Payouts**.
+
+Private and unlisted plugins are not subject to the revenue share — CableKnit does not charge for private plugin distribution.

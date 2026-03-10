@@ -1,0 +1,230 @@
+---
+title: Automations
+description: Define stateful workflows that run when triggered by events, schedules, or webhooks.
+---
+
+Automations are the core of a CableKnit plugin. Each automation is a state machine — a set of states and transitions that define how a workflow moves from trigger to completion.
+
+## The mental model
+
+Think of an automation as a flowchart where:
+
+- **States** are the boxes — each one represents a step in the workflow
+- **Entry actions** are what happens when a run enters a state (send an email, ask the AI, request a human decision)
+- **Transitions** are the arrows — they define how and when the workflow moves from one state to the next
+- **Conditions** are the rules on the arrows — what has to be true for a transition to fire
+
+When a trigger fires, CableKnit creates an `AutomationRun` and starts it at the initial state. It executes the entry action, evaluates the outgoing transitions, picks the one whose condition is met, and moves to the next state. This continues until the run reaches a terminal state.
+
+## Automation file format
+
+```json
+{
+  "name": "Subcontractor Intake and Approval",
+  "slug": "subcontractor-intake-approval",
+  "description": "Triages incoming subcontractor applications and routes them for human approval.",
+  "trigger_type": "inbound_email",
+  "trigger_config": {},
+  "priority": "high",
+  "case_reference_prefix": "SUB",
+  "system_prompt": "You are reviewing subcontractor intake submissions for a construction company.",
+  "position": 1,
+  "workflow_definition": {
+    "states": [...],
+    "transitions": [...]
+  }
+}
+```
+
+### Field reference
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | Yes | Display name |
+| `slug` | string | Yes | Unique within the bundle |
+| `description` | string | No | Shown in the admin interface |
+| `trigger_type` | enum | Yes | `inbound_email`, `webhook`, `schedule`, or `event` |
+| `trigger_config` | object | No | Trigger-specific configuration. See [Trigger Types](/trigger-types). |
+| `priority` | enum | No | `low`, `normal`, `high`, or `critical`. Defaults to `normal`. Inherited by Decisions this automation creates. |
+| `case_reference_prefix` | string | No | Prefix for run reference numbers. `SUB` produces `SUB-0001`, `SUB-0002`, etc. |
+| `system_prompt` | string | No | Automation-level LLM context. Injected alongside skill prompts. |
+| `position` | integer | No | Sort order |
+
+## Workflow definition
+
+The `workflow_definition` object contains two arrays: `states` and `transitions`.
+
+```json
+{
+  "states": [
+    {
+      "name": "assess",
+      "type": "initial",
+      "entry_action": {
+        "type": "ai_assess",
+        "system_prompt": "Assess this subcontractor application..."
+      }
+    },
+    {
+      "name": "request_approval",
+      "entry_action": {
+        "type": "request_decision",
+        "title": "Subcontractor Application: {{case_context.assessment.company_name}}",
+        "decision_options": [
+          { "key": "approve", "label": "Approve" },
+          { "key": "reject", "label": "Reject" }
+        ],
+        "assigned_role": "manager",
+        "expires_in": 48
+      }
+    },
+    {
+      "name": "approved",
+      "entry_action": {
+        "type": "notify",
+        "channels": ["email"],
+        "title": "Application approved",
+        "body": "{{case_context.assessment.company_name}} has been approved."
+      }
+    },
+    {
+      "name": "rejected"
+    },
+    {
+      "name": "completed",
+      "type": "terminal",
+      "terminal_status": "completed"
+    }
+  ],
+  "transitions": [
+    {
+      "from_state": "assess",
+      "to_state": "request_approval",
+      "priority": 1,
+      "condition": { "type": "automatic" }
+    },
+    {
+      "from_state": "request_approval",
+      "to_state": "approved",
+      "priority": 1,
+      "condition": { "type": "decision_outcome", "matches": "approve" }
+    },
+    {
+      "from_state": "request_approval",
+      "to_state": "rejected",
+      "priority": 2,
+      "condition": { "type": "decision_outcome", "matches": "reject" }
+    },
+    {
+      "from_state": "request_approval",
+      "to_state": "completed",
+      "priority": 3,
+      "condition": { "type": "fallback" }
+    },
+    {
+      "from_state": "approved",
+      "to_state": "completed",
+      "priority": 1,
+      "condition": { "type": "automatic" }
+    },
+    {
+      "from_state": "rejected",
+      "to_state": "completed",
+      "priority": 1,
+      "condition": { "type": "automatic" }
+    }
+  ]
+}
+```
+
+## States
+
+### State fields
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | Yes | Unique within the workflow |
+| `type` | enum | No | `initial`, `normal`, or `terminal`. Defaults to `normal`. |
+| `entry_action` | object | No | The action to execute when the run enters this state |
+| `timeout` | integer | No | Seconds before a `timeout` transition fires |
+| `terminal_status` | enum | No | For terminal states: `completed` or `failed` |
+
+### Rules
+
+- Exactly one state must have `"type": "initial"` — this is where every run starts
+- At least one state must have `"type": "terminal"` — this is where runs end
+- All state names must be unique
+- Every non-terminal state must have at least one outgoing transition
+- Every state must be reachable from the initial state
+
+### Terminal states
+
+Terminal states end the run. Set `terminal_status` to indicate whether the run succeeded or failed:
+
+```json
+{
+  "name": "completed",
+  "type": "terminal",
+  "terminal_status": "completed"
+}
+```
+
+```json
+{
+  "name": "failed",
+  "type": "terminal",
+  "terminal_status": "failed"
+}
+```
+
+## Transitions
+
+Transitions define how the workflow moves between states. Each transition has a `from_state`, a `to_state`, a `condition`, and a `priority`.
+
+```json
+{
+  "from_state": "review",
+  "to_state": "approved",
+  "priority": 1,
+  "condition": { "type": "decision_outcome", "matches": "approve" }
+}
+```
+
+When a state's entry action completes, CableKnit evaluates all outgoing transitions in priority order (lowest number first) and fires the first one whose condition is met.
+
+### Priority
+
+Priority determines evaluation order. Lower numbers are evaluated first. Ties are broken by definition order.
+
+Always end a state's transitions with a `fallback` at the highest priority number — this is a catch-all that fires if no other condition matches.
+
+```json
+{ "from_state": "review", "to_state": "escalated", "priority": 99, "condition": { "type": "fallback" } }
+```
+
+<Warning>
+Every non-terminal state must have a `fallback` transition. If no condition matches and there's no fallback, the run will fail. Bundle validation will catch this and reject the upload.
+</Warning>
+
+## Automation priority
+
+The `priority` field on an automation sets the default priority for all Decisions it creates. This controls sort order in the Decision Queue — `critical` decisions appear at the top.
+
+| Value | Use case |
+|---|---|
+| `low` | Informational reviews, reports, non-urgent approvals |
+| `normal` | Standard operational decisions |
+| `high` | Time-sensitive approvals, compliance items |
+| `critical` | Safety incidents, regulatory deadlines, immediate action required |
+
+Individual `request_decision` actions can override the automation-level priority if a specific step needs different urgency than the rest of the workflow.
+
+## Interpolation
+
+Strings in action parameters support `{{interpolation}}` to embed values from the run's context:
+
+```json
+"title": "Application from {{case_context.assessment.company_name}}"
+```
+
+The `case_context` object accumulates data throughout the run. See [Context](/context) for the full reference on reading and writing context data.

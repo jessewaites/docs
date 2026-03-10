@@ -1,0 +1,113 @@
+---
+title: Bundle Format
+description: The structure and contents of a .sweater plugin bundle.
+---
+
+A plugin is distributed as a `.sweater` bundle — a folder you zip and upload to the Developer Portal. The `.sweater` extension is CableKnit's native plugin format.
+
+## Folder structure
+
+```
+my-plugin.sweater/
+  plugin.json          ← required: plugin manifest
+  skills/              ← optional: one JSON file per skill
+    skill-name.json
+  automations/         ← optional: one JSON file per automation
+    automation-name.json
+  docs/                ← optional: Markdown files, supports subfolders
+    getting-started.md
+    advanced/
+      custom-config.md
+  README.md            ← optional: shown in Marketplace listing
+```
+
+Convention-based — no manifest list required. The server picks up every file in each folder automatically. Order within a folder is determined by the `position` field inside each file.
+
+## plugin.json
+
+The root manifest for your plugin.
+
+```json
+{
+  "name": "Subcontractor Onboarding",
+  "slug": "subcontractor-onboarding",
+  "version": "1.0.0",
+  "description": "Automates subcontractor intake, document collection, and compliance verification.",
+  "author": {
+    "name": "Acme Consulting",
+    "email": "dev@acme.com",
+    "website": "https://acme.com"
+  },
+  "industry": "construction",
+  "tier": "industry",
+  "visibility": "public",
+  "pricing": {
+    "model": "monthly",
+    "price_cents": 4900
+  },
+  "requirements": {
+    "connectors": ["procore"]
+  },
+  "nav": {
+    "show_in_nav": false,
+    "icon": "briefcase",
+    "label": "Onboarding"
+  }
+}
+```
+
+### Field reference
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | Yes | Display name shown in the Marketplace |
+| `slug` | string | Yes | Unique identifier. Lowercase letters, numbers, and hyphens only. |
+| `version` | string | Yes | Semver format: `1.0.0` |
+| `description` | string | Yes | Short description shown in Marketplace listings |
+| `author.name` | string | Yes | Your name or company name |
+| `author.email` | string | No | Contact email |
+| `author.website` | string | No | Your website |
+| `industry` | string | No | Industry this plugin targets (e.g. `construction`, `food_distribution`, `logistics`) |
+| `tier` | enum | Yes | `starter`, `industry`, or `custom` |
+| `visibility` | enum | Yes | `private`, `unlisted`, or `public` |
+| `pricing.model` | enum | Yes | `monthly` |
+| `pricing.price_cents` | integer | Yes | Monthly price in cents. Must be at or above the calculated cost floor. |
+| `requirements.connectors` | array | No | Connector slugs required for the plugin to function |
+| `nav.show_in_nav` | boolean | No | Show plugin as a tab in the Mac app sidebar. Defaults to `false`. |
+| `nav.icon` | string | No | SF Symbol name for the nav icon. Required if `show_in_nav` is `true`. |
+| `nav.label` | string | No | Sidebar label. Required if `show_in_nav` is `true`. |
+
+### Visibility options
+
+| Value | Description | Review required |
+|---|---|---|
+| `private` | Only installable by companies you explicitly grant access to | No |
+| `unlisted` | Installable via direct link, not shown in Marketplace | No |
+| `public` | Listed in the Marketplace, available to all companies | Yes |
+
+### Pricing and the cost floor
+
+CableKnit calculates a minimum price for your plugin based on the estimated API cost of running your automations. The calculation counts AI steps (`ai_assess` actions) across all your automation templates and estimates the monthly cost at 500 runs.
+
+If your `price_cents` is below the floor, the upload will be rejected with a message explaining exactly what the floor is and why. Set your price at or above the floor — you are free to charge more.
+
+### Connector requirements
+
+If your plugin depends on a connector being configured (for example, your automation listens for Procore events), declare it in `requirements.connectors`. When a company tries to install your plugin without the required connector, they'll be prompted to connect it first.
+
+Available connector slugs: `salesforce`, `hubspot`, `google`, `quickbooks`, `xero`, `docusign`, `slack`, `procore`, `microsoft`
+
+## Limits
+
+| Resource | Limit |
+|---|---|
+| Bundle size | 10MB |
+| Skills | 20 |
+| Automations | 10 |
+| Documentation pages | 50 |
+
+## Updating your bundle
+
+Re-uploading a bundle with the same `slug` updates the plugin in place. All existing records are updated to match the new bundle. Files you remove from the bundle are deleted from the database.
+
+If your plugin has already been submitted or approved, re-uploading resets it to `draft` and requires re-submission. Plan your updates accordingly — batch changes before re-submitting rather than submitting individual small changes.

@@ -1,0 +1,157 @@
+---
+title: Connectors
+description: Integrate with third-party services via CableKnit's connector framework.
+---
+
+Connectors let your automations respond to events from external systems and send notifications to connected services. A company installs a connector once; all automations that require it can use it.
+
+## Available connectors
+
+| Connector | Slug | Capabilities |
+|---|---|---|
+| Salesforce | `salesforce` | Record events, data sync |
+| HubSpot | `hubspot` | Deal and contact events |
+| Google Workspace | `google` | Gmail, Drive, Calendar events |
+| QuickBooks | `quickbooks` | Invoice and payment events |
+| Xero | `xero` | Invoice and accounting events |
+| DocuSign | `docusign` | Envelope status events |
+| Slack | `slack` | Post messages to channels |
+| Procore | `procore` | RFI, submittal, change order, daily log events |
+| Microsoft 365 | `microsoft` | Teams messages, mail and file notifications |
+
+## Declaring connector requirements
+
+If your plugin requires one or more connectors, declare them in `plugin.json`:
+
+```json
+{
+  "requirements": {
+    "connectors": ["procore", "docusign"]
+  }
+}
+```
+
+When a company tries to install your plugin, CableKnit checks that all required connectors are configured. If any are missing, the company is prompted to connect them before installation completes.
+
+## Using connectors in automations
+
+### Event triggers
+
+Use the `event` trigger type to start a run when a connector event arrives:
+
+```json
+{
+  "trigger_type": "event",
+  "trigger_config": {
+    "event_type": "ConnectorEvent",
+    "channel": "envelopes",
+    "conditions": [
+      { "field": "payload.status", "operator": "eq", "value": "completed" }
+    ]
+  }
+}
+```
+
+The full event payload is available as `case_context.trigger_data`.
+
+### Slack notifications
+
+Send messages to the company's Slack workspace from any step:
+
+```json
+{
+  "type": "notify_slack",
+  "channel": "#operations",
+  "message": "New RFI received: {{case_context.trigger_data.subject}}"
+}
+```
+
+If the company hasn't connected Slack, this action is skipped silently rather than failing the run.
+
+### Microsoft Teams notifications
+
+Send channel posts or direct messages via Microsoft Teams:
+
+```json
+{
+  "type": "notify_teams",
+  "user_email": "{{case_context.trigger_data.assigned_to_email}}",
+  "message": "You have a pending decision in CableKnit: {{case_context.decision_title}}"
+}
+```
+
+## Connector event channels
+
+### DocuSign
+
+| Channel | Events | Trigger conditions |
+|---|---|---|
+| `envelopes` | Envelope status changes | `payload.status`: `completed`, `declined`, `voided` |
+
+**Example — trigger when a contract is signed:**
+
+```json
+{
+  "trigger_type": "event",
+  "trigger_config": {
+    "event_type": "ConnectorEvent",
+    "channel": "envelopes",
+    "conditions": [
+      { "field": "payload.status", "operator": "eq", "value": "completed" }
+    ]
+  }
+}
+```
+
+### Procore
+
+| Channel | Events | Trigger conditions |
+|---|---|---|
+| `events` | RFI, Submittal, ChangeOrder, DailyLog | `payload.resource_name`, `payload.event_type`: `create`, `update` |
+
+**Example — trigger when an RFI is created:**
+
+```json
+{
+  "trigger_type": "event",
+  "trigger_config": {
+    "event_type": "ConnectorEvent",
+    "channel": "events",
+    "conditions": [
+      { "field": "payload.resource_name", "operator": "eq", "value": "RFI" },
+      { "field": "payload.event_type", "operator": "eq", "value": "create" }
+    ]
+  }
+}
+```
+
+### Slack
+
+| Channel | Events |
+|---|---|
+| `events` | Workspace events, message events |
+
+### Microsoft 365
+
+| Channel | Events |
+|---|---|
+| `notifications` | Mail, file, Teams notifications |
+
+### Google Workspace
+
+| Channel | Events |
+|---|---|
+| `gmail` | Incoming email events |
+| `drive` | File change events |
+
+### Salesforce / HubSpot
+
+| Channel | Events |
+|---|---|
+| `streaming` | Record change events via Salesforce Streaming API / HubSpot webhooks |
+
+## Building connector-optional automations
+
+Design your automations to degrade gracefully when a connector isn't available. Use `notify_slack` and `notify_teams` freely — both are skipped silently if the connector isn't configured. For event-triggered automations, the trigger simply won't fire if the connector isn't connected.
+
+For core workflow logic that absolutely requires a connector, declare it as a requirement in `plugin.json` so the company is prompted to connect it at install time.

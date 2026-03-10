@@ -1,0 +1,224 @@
+---
+title: Entry Actions
+description: Complete reference for all workflow entry action types.
+---
+
+Entry actions define what happens when a run enters a state. Each state can have one entry action. The action executes, then the workflow evaluates outgoing transitions.
+
+## ai_assess
+
+Uses the LLM to analyze the current context and store structured results. This is the primary way to extract information, classify content, and make data available to subsequent steps.
+
+```json
+{
+  "type": "ai_assess",
+  "system_prompt": "You are reviewing a subcontractor application. Extract the company name, trade, license number, and insurance status. Assess whether the application is complete. Respond as JSON.",
+  "output_key": "assessment",
+  "output_schema": {
+    "company_name": "string",
+    "trade": "string",
+    "license_number": "string",
+    "insurance_status": "string",
+    "is_complete": "boolean",
+    "missing_fields": "array"
+  },
+  "input_keys": ["trigger_data"],
+  "untrusted_keys": ["trigger_data.body"]
+}
+```
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `system_prompt` | string | Yes | Instructions for the LLM |
+| `user_prompt` | string | No | Defaults to `"Analyze the following context and respond with JSON."` |
+| `output_key` | string | No | Stores the parsed JSON result in `case_context` under this key |
+| `output_schema` | object | No | JSON schema the response should match. Helps the LLM produce consistent output. |
+| `input_keys` | array | No | Context keys to include in the LLM's input. Omitting sends the full context. |
+| `untrusted_keys` | array | No | Keys wrapped as untrusted content to prevent prompt injection from external data |
+
+<Tip>
+Always mark external data (email bodies, webhook payloads, user input) as `untrusted_keys`. This wraps the content in a safety boundary that instructs the LLM to treat it as data, not instructions.
+</Tip>
+
+The result is stored in `case_context` under `output_key` and is available for interpolation and conditions in subsequent steps: `{{case_context.assessment.company_name}}`.
+
+---
+
+## request_decision
+
+Pauses the workflow and creates a Decision for a human to review. The run stays paused until a team member resolves the Decision from the Mac app, iOS app, or email. The outcome is then available as a `decision_outcome` condition.
+
+```json
+{
+  "type": "request_decision",
+  "title": "Subcontractor Application: {{case_context.assessment.company_name}}",
+  "description": "Review this subcontractor application and select an outcome.",
+  "decision_options": [
+    { "key": "approve", "label": "Approve" },
+    { "key": "reject", "label": "Reject" },
+    { "key": "request_more_info", "label": "Request more information", "requires_input": true }
+  ],
+  "assigned_role": "manager",
+  "context_keys": ["assessment"],
+  "priority": "high",
+  "expires_in": 48
+}
+```
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `title` | string | Yes | Decision title. Supports `{{interpolation}}`. |
+| `description` | string | No | Additional context shown to the reviewer. Supports `{{interpolation}}`. |
+| `decision_options` | array | Yes | The options available to the reviewer |
+| `decision_options[].key` | string | Yes | The value used in `decision_outcome` conditions |
+| `decision_options[].label` | string | Yes | The label shown to the reviewer |
+| `decision_options[].requires_input` | boolean | No | If `true`, the reviewer must provide a text note with their decision |
+| `assigned_role` | string | No | Routes the Decision to users with this workflow role |
+| `context_keys` | array | No | Subset of context keys to include in the Decision detail view |
+| `priority` | enum | No | `low`, `normal`, `high`, `critical`. Overrides the automation-level priority for this step. |
+| `expires_in` | integer | No | Hours until the Decision expires. Triggers a `timeout` transition if configured. |
+
+The reviewer sees the Decision in the CableKnit Decision Queue alongside any artifacts attached to the run. After they resolve it, the outcome is available as `case_context.decision_outcome`.
+
+---
+
+## send_and_wait
+
+Sends a notification and pauses the workflow until a response is received. Used for email reply loops — send a message to an external party and resume when they reply.
+
+```json
+{
+  "type": "send_and_wait",
+  "channel": "email",
+  "recipient_role": "vendor_contact",
+  "template": "request-additional-docs",
+  "wait_for": "email_reply",
+  "timeout": "72h",
+  "output_key": "vendor_reply"
+}
+```
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `channel` | string | No | `email`. Defaults to `email`. |
+| `recipient_role` | string | No | Workflow role to send to |
+| `template` | string | No | Email template slug |
+| `wait_for` | string | No | `email_reply` |
+| `timeout` | string | No | Duration string (e.g. `"24h"`, `"7d"`) before a `timeout` transition fires |
+| `output_key` | string | No | Stores reply metadata in `case_context`. Defaults to `"driver_notification"`. |
+
+The run stays in `paused_for_input` status until the reply arrives. The reply content is stored in `case_context` under `output_key` and can be assessed by a subsequent `ai_assess` step.
+
+---
+
+## notify
+
+Sends a notification without pausing the workflow. The run continues immediately to evaluate outgoing transitions.
+
+```json
+{
+  "type": "notify",
+  "channels": ["email", "in_app"],
+  "title": "Application Approved: {{case_context.assessment.company_name}}",
+  "body": "The subcontractor application has been approved and is ready for onboarding.",
+  "to_role": "manager",
+  "severity": "info"
+}
+```
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `channels` | array or string | No | `email`, `in_app`, `sms`. Defaults to `["in_app"]`. |
+| `title` or `subject` | string | No | Notification title or email subject. Supports `{{interpolation}}`. |
+| `body` | string | No | Notification body. Supports `{{interpolation}}`. |
+| `to_addresses` | array | No | Specific email addresses to notify |
+| `to_role` | string | No | Notify all users with this workflow role |
+| `email_template_slug` | string | No | Use a custom email template instead of `title`/`body` |
+| `phone_numbers` | array | No | Phone numbers for SMS |
+| `severity` | enum | No | `info`, `warning`, `error`. Affects in-app notification styling. |
+
+---
+
+## notify_slack
+
+Posts a message to a Slack channel. Requires the company to have the Slack connector configured.
+
+```json
+{
+  "type": "notify_slack",
+  "channel": "#operations",
+  "message": "New application received from {{case_context.assessment.company_name}} — review required."
+}
+```
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `channel` | string | Yes | Slack channel name or ID. Supports `{{interpolation}}`. |
+| `message` | string | Yes | Message text. Supports `{{interpolation}}`. |
+
+If the company hasn't connected Slack, this action is skipped silently.
+
+---
+
+## notify_teams
+
+Sends a message via Microsoft Teams. Requires the company to have the Microsoft 365 connector configured.
+
+```json
+{
+  "type": "notify_teams",
+  "team_id": "your-team-id",
+  "channel_id": "your-channel-id",
+  "message": "Decision required: {{case_context.assessment.company_name}}"
+}
+```
+
+To send a direct message instead of a channel post, use `user_email`:
+
+```json
+{
+  "type": "notify_teams",
+  "user_email": "{{case_context.assigned_to_email}}",
+  "message": "You have a pending decision in CableKnit."
+}
+```
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `message` | string | Yes | Message text. Supports `{{interpolation}}`. |
+| `team_id` | string | No | Teams team ID (for channel post) |
+| `channel_id` | string | No | Teams channel ID (for channel post) |
+| `user_email` | string | No | Email address for direct message. Supports `{{interpolation}}`. |
+
+Provide either `team_id` + `channel_id` for a channel post, or `user_email` for a direct message.
+
+---
+
+## composite
+
+Executes multiple actions sequentially in a single state. All actions run before transitions are evaluated.
+
+```json
+{
+  "type": "composite",
+  "actions": [
+    {
+      "type": "notify",
+      "channels": ["in_app"],
+      "title": "Application received",
+      "body": "A new subcontractor application is being processed."
+    },
+    {
+      "type": "notify_slack",
+      "channel": "#operations",
+      "message": "New subcontractor application received — processing now."
+    }
+  ]
+}
+```
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `actions` | array | Yes | Array of action objects. Any valid action type is supported, including nested `composite`. |
+
+Actions execute in order. If one fails, subsequent actions in the composite do not run and the run enters a failed state.
