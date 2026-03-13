@@ -59,6 +59,32 @@ Clears your local session and invalidates the token on the server.
 
 ## Develop plugins
 
+### Generate a new plugin
+
+Scaffold a new plugin project with all the standard folders and starter files:
+
+```bash
+cableknit generate
+```
+
+Aliases: `init`, `scaffold`
+
+An interactive form prompts you for: plugin name, description, category, industry, and billing interval. The CLI creates a ready-to-edit bundle:
+
+```
+<slug>/
+  plugin.json
+  skills/
+  automations/
+  blueprints/
+  tools/
+    sample-lookup.json     # data_store example
+    reference-data.json    # static data example
+  docs/
+    getting-started.md
+  images/
+```
+
 ### Validate a bundle
 
 Run validation against the CableKnit platform without publishing anything:
@@ -128,6 +154,18 @@ For plain-text output (useful for piping or CI):
 ```bash
 cableknit runs tail RUN-7F3A --no-tui
 ```
+
+## Discover connectors
+
+### List available connectors
+
+```bash
+cableknit connectors list
+```
+
+Displays a table with columns: NAME, SLUG, CATEGORY, AUTH, STATUS. Supports `--json` for scripted output.
+
+Use this to discover connector slugs when setting `requirements.connectors` in your `plugin.json`.
 
 ## Global flags
 

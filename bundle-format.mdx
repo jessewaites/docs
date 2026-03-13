@@ -14,10 +14,16 @@ my-plugin.sweater/
     skill-name.json
   automations/         ← optional: one JSON file per automation
     automation-name.json
+  blueprints/          ← optional: one JSON file per artifact blueprint
+    report-template.json
+  tools/               ← optional: one JSON file per data tool
+    crm-lookup.json
   docs/                ← optional: Markdown files, supports subfolders
     getting-started.md
     advanced/
       custom-config.md
+  images/              ← optional: screenshots for Marketplace listing
+    screenshot-1.png
   README.md            ← optional: shown in Marketplace listing
 ```
 
@@ -97,6 +103,38 @@ If your plugin depends on a connector being configured (for example, your automa
 
 Available connector slugs: `salesforce`, `hubspot`, `google`, `quickbooks`, `xero`, `docusign`, `slack`, `procore`, `microsoft`
 
+### Settings schema
+
+Define configuration fields that companies fill out when installing your plugin. Values are available to the AI in prompt context.
+
+```json
+"settings_schema": [
+  {
+    "key": "api-key",
+    "label": "API Key",
+    "type": "string",
+    "required": true
+  },
+  {
+    "key": "notify-email",
+    "label": "Notification Email",
+    "type": "email",
+    "required": false,
+    "default": ""
+  }
+]
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `key` | string | Yes | Lowercase alphanumeric and hyphens |
+| `label` | string | Yes | Display label shown to the company |
+| `type` | enum | Yes | `string`, `email`, `number`, `boolean`, `url` |
+| `required` | boolean | No | If true, company must fill before installing |
+| `default` | any | No | Default value |
+
+Add `settings_schema` as a top-level field in your `plugin.json`. Companies fill these settings at install time.
+
 ## Limits
 
 | Resource | Limit |
@@ -104,7 +142,12 @@ Available connector slugs: `salesforce`, `hubspot`, `google`, `quickbooks`, `xer
 | Bundle size | 10MB |
 | Skills | 20 |
 | Automations | 10 |
+| Blueprints | 20 |
+| Data tools | 10 |
 | Documentation pages | 50 |
+| Images | 5 (max 2MB each, PNG/JPG/WEBP) |
+| Blueprint content schema | 4KB |
+| Static tool data | 64KB |
 
 ## Updating your bundle
 

@@ -43,6 +43,7 @@ CableKnit parses this tag from the LLM's response and creates an `Artifact` reco
 |---|---|
 | `name` | Display name shown in the UI |
 | `type` | The artifact type (see below) |
+| `blueprint` | Optional slug of an artifact blueprint to validate against |
 
 Content can be Markdown, plain text, JSON, or any structured format depending on the type.
 
@@ -61,6 +62,190 @@ Content can be Markdown, plain text, JSON, or any structured format depending on
 | `image` | Image content | File (via ActiveStorage) |
 | `options_selection` | Structured option sets | JSON |
 | `other` | Anything else | Any |
+
+## Artifact blueprints
+
+Blueprints are templates that define structured output schemas for specific artifact types. They tell the AI exactly how to format a particular kind of artifact — field structure, validation rules, and default content.
+
+Blueprint files live in the `blueprints/` folder of your bundle. Each file is a JSON document at `blueprints/{slug}.json`. You can ship up to **20 blueprints per plugin**.
+
+### Blueprint file format
+
+```json
+{
+  "name": "Weekly Report",
+  "slug": "weekly-report",
+  "artifact_type": "report",
+  "description": "Standard weekly operations summary",
+  "instructions": "Generate a weekly report covering KPIs, incidents, and action items. Use Markdown headers for each section.",
+  "content_schema": {
+    "type": "object",
+    "properties": {
+      "kpis": { "type": "array" },
+      "incidents": { "type": "array" },
+      "action_items": { "type": "array" }
+    }
+  },
+  "default_content": {
+    "kpis": [],
+    "incidents": [],
+    "action_items": []
+  }
+}
+```
+
+### Field reference
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | Yes | Display name |
+| `slug` | string | Yes | Lowercase letters and hyphens only |
+| `artifact_type` | string | Yes | Must match a valid artifact type (see types table above) |
+| `description` | string | No | Internal description |
+| `instructions` | string | No | AI guidance for generating this artifact |
+| `content_schema` | object | No | JSON Schema for validation (max 4KB) |
+| `default_content` | object | No | Default content if none generated |
+
+### How blueprints appear to the AI
+
+CableKnit injects blueprint definitions into the AI prompt as XML:
+
+```xml
+<artifact_blueprints>
+<blueprint slug="weekly-report" type="report" name="Weekly Report">
+Instructions text here
+Schema: { ... }
+</blueprint>
+</artifact_blueprints>
+```
+
+### Referencing a blueprint
+
+When producing an artifact, set the `blueprint` attribute to the blueprint's slug:
+
+```xml
+<artifact name="Ops Summary — Week 11" type="report" blueprint="weekly-report">
+...content...
+</artifact>
+```
+
+CableKnit validates the content against the blueprint's `content_schema` if one is defined.
+
+---
+
+## Chart schema
+
+Artifacts of type `chart` expect JSON content describing the chart data and layout:
+
+```json
+{
+  "chart_type": "bar",
+  "title": "Monthly Revenue",
+  "subtitle": "Q1 2026",
+  "x_axis": { "key": "month", "label": "Month", "type": "categorical" },
+  "y_axis": { "key": "revenue", "label": "Revenue ($)", "type": "numeric", "format": "currency" },
+  "series": [
+    {
+      "name": "Revenue",
+      "color": "#0066FF",
+      "data": [
+        { "x": "January", "y": 45000 },
+        { "x": "February", "y": 52000 },
+        { "x": "March", "y": 61000 }
+      ]
+    }
+  ]
+}
+```
+
+### Chart field reference
+
+| Field | Description |
+|---|---|
+| `chart_type` | `bar`, `line`, `pie`, or `area` |
+| `title` | Chart title |
+| `subtitle` | Optional subtitle |
+| `x_axis.key` | Data key for x values |
+| `x_axis.type` | `categorical` or `temporal` |
+| `y_axis.key` | Data key for y values |
+| `y_axis.type` | `numeric` |
+| `y_axis.format` | `number`, `currency`, or `percent` |
+| `series[].name` | Series label |
+| `series[].color` | Hex color |
+| `series[].data` | Array of `{ x, y }` data points |
+
+---
+
+## Schedule schema
+
+Artifacts of type `schedule` expect JSON content describing a staffing or shift schedule:
+
+```json
+{
+  "period_start": "2026-03-10",
+  "period_end": "2026-03-16",
+  "days": [
+    {
+      "date": "2026-03-10",
+      "day_name": "Monday",
+      "is_closed": false,
+      "shifts": {
+        "morning": {
+          "time": "6:00-14:00",
+          "assignments": [
+            { "employee_id": "E01", "name": "Jane Smith", "role": "manager", "hours": 8 }
+          ]
+        },
+        "afternoon": {
+          "time": "14:00-22:00",
+          "assignments": []
+        },
+        "evening": {
+          "time": "22:00-6:00",
+          "assignments": []
+        }
+      }
+    }
+  ],
+  "warnings": [
+    { "type": "coverage_gap", "severity": "high", "message": "Tuesday evening has no coverage" }
+  ]
+}
+```
+
+### Schedule field reference
+
+| Field | Description |
+|---|---|
+| `period_start` / `period_end` | Date range (YYYY-MM-DD) |
+| `days[].date` | Date for this day |
+| `days[].day_name` | Day of week |
+| `days[].is_closed` | Whether the location is closed |
+| `days[].shifts` | Object with `morning`, `afternoon`, `evening` keys |
+| `shifts.*.time` | Time range string |
+| `shifts.*.assignments` | Array of employee assignments |
+| `assignments[].employee_id` | Employee identifier |
+| `assignments[].name` | Employee display name |
+| `assignments[].role` | Role for this shift |
+| `assignments[].hours` | Hours assigned |
+| `warnings[].type` | Warning category (e.g. `coverage_gap`, `overtime`) |
+| `warnings[].severity` | `low`, `medium`, or `high` |
+| `warnings[].message` | Human-readable warning |
+
+---
+
+## Spreadsheet format
+
+Artifacts of type `spreadsheet` use JSON content where each object in the array represents one row. Object keys become column headers.
+
+```json
+[
+  { "Name": "Jane Smith", "Department": "Operations", "Status": "Active" },
+  { "Name": "Bob Jones", "Department": "Sales", "Status": "On Leave" }
+]
+```
+
+---
 
 ## Producing a report
 

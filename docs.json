@@ -45,7 +45,7 @@
       },
       {
         "group": "Building Plugins",
-        "pages": ["skills", "automations", "artifacts", "connectors"]
+        "pages": ["skills", "automations", "artifacts", "tools", "connectors"]
       },
       {
         "group": "Tool & Capabilities",

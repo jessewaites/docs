@@ -33,6 +33,14 @@ If your plugin requires one or more connectors, declare them in `plugin.json`:
 
 When a company tries to install your plugin, CableKnit checks that all required connectors are configured. If any are missing, the company is prompted to connect them before installation completes.
 
+## Querying connector data in chat
+
+When a company connects a service, the AI can query it live during chat using the built-in `fetch_briefing` tool. No plugin configuration is needed — declaring the connector requirement in `plugin.json` is enough.
+
+The AI calls `fetch_briefing` with the connection name, a time period, and optional resource filters. For example, a user might ask "What deals closed this week?" and the AI will query HubSpot via the company's active connector.
+
+For more targeted or structured queries, plugins can define connector-type [data tools](/tools#connector) that map parameters to specific connector resources and filters.
+
 ## Using connectors in automations
 
 ### Event triggers

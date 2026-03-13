@@ -9,6 +9,78 @@ Additional capabilities become available when a company connects optional servic
 
 ---
 
+## AI tools in chat
+
+The AI has access to built-in tools during chat conversations. Tools are context-sensitive — they appear based on what's active (attachments, connectors, installed plugins, existing artifacts).
+
+### `lookup_employees`
+
+Search the company's employee directory.
+
+| Parameter | Type | Description |
+|---|---|---|
+| `search` | string | Name, role, or keyword |
+| `department` | string | Filter by department |
+| `include_schedules` | boolean | Include availability and schedule data |
+
+Returns employee records with id, name, role, email, phone, skills, and availability.
+
+### `create_automation`
+
+Create recurring automations directly from chat.
+
+| Parameter | Type | Description |
+|---|---|---|
+| `name` | string | Automation name |
+| `description` | string | What the automation does |
+| `schedule_cron` | string | Cron expression (UTC) |
+| `automation_kind` | string | One of the available automation kinds |
+
+Available kinds: `employee_stats_summary`, `weekly_employee_report`, `new_employee_digest`, `incomplete_profiles_audit`.
+
+### `fetch_briefing`
+
+Query live data from connected services. Only available when the company has active connectors.
+
+| Parameter | Type | Description |
+|---|---|---|
+| `connection_name` | string | Name of the connected service |
+| `period` | string | Time range: `1d`, `7d`, `30d`, `90d`, `1y`, or `all` |
+| `resources` | string | Comma-separated resource types |
+| `latest` | integer | Number of most recent records to return |
+
+### `transform_file`
+
+Manipulate uploaded file data. Only available when the user has file attachments in the chat.
+
+**Operations:** `remove_column`, `add_column`, `rename_column`, `reorder_columns`, `filter_rows`, `sort_rows`, `deduplicate`
+
+**Formulas** (for `add_column`): `concat`, `uppercase`, `lowercase`, `trim`, `static_value`
+
+**Filter operators** (for `filter_rows`): `equals`, `not_equals`, `contains`, `not_contains`, `greater_than`, `less_than`, `starts_with`, `ends_with`
+
+### `update_cells`
+
+Edit an active spreadsheet artifact. Only available when a spreadsheet artifact exists in the conversation.
+
+| Parameter | Type | Description |
+|---|---|---|
+| `updates` | array | `[{ row, column, value }]` cell updates |
+| `new_columns` | array | Columns to add |
+| `delete_columns` | array | Columns to remove |
+| `delete_rows` | array | Row indices to remove |
+| `rename_columns` | object | `{ old_name: new_name }` mappings |
+
+### Plugin data tools
+
+Plugins can define custom tools the AI calls in chat. These are configured as JSON files in the `tools/` folder of the plugin bundle. See [Data Tools](/tools) for details.
+
+<Note>
+Tools auto-register based on context. You don't need to enable them manually — CableKnit adds them to the AI's tool set when the relevant context is present (e.g., a file is attached, a connector is active, a plugin is installed).
+</Note>
+
+---
+
 ## Outbound email
 
 Send emails from your workflow using the `notify` action with `"email"` as the channel, or use `send_and_wait` to pause the run until the recipient replies.
